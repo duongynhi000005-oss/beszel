@@ -75,11 +75,13 @@ type RocmSmiJson struct {
 
 // gpuCollector defines a collector for a specific GPU management utility (nvidia-smi or rocm-smi)
 type gpuCollector struct {
-	name    string
-	cmdArgs []string
-	parse   func([]byte) bool // returns true if valid data was found
-	buf     []byte
-	bufSize uint16
+	name     string
+	cmdArgs  []string
+	parse    func([]byte) bool // returns true if valid data was found
+	buf      []byte
+	bufSize  uint16
+	waitTime time.Duration
+	failures int
 }
 
 var errNoValidData = fmt.Errorf("no valid GPU data found") // Error for missing data
@@ -142,6 +144,10 @@ type collectorDefinition struct {
 
 // starts and manages the ongoing collection of GPU data for the specified GPU management utility
 func (c *gpuCollector) start() {
+	waitTime := c.waitTime
+	if waitTime <= 0 {
+		waitTime = retryWaitTime
+	}
 	for {
 		err := c.collect()
 		if err != nil {
@@ -149,10 +155,16 @@ func (c *gpuCollector) start() {
 				slog.Warn(c.name + " found no valid GPU data, stopping")
 				break
 			}
+			c.failures++
+			if c.failures > maxFailureRetries {
+				slog.Warn(c.name+" GPU collector failed repeatedly, stopping", "err", err)
+				break
+			}
 			slog.Warn(c.name+" failed, restarting", "err", err)
-			time.Sleep(retryWaitTime)
+			time.Sleep(waitTime)
 			continue
 		}
+		c.failures = 0
 	}
 }
 
@@ -178,6 +190,7 @@ func (c *gpuCollector) collect() error {
 		if !hasValidData {
 			return errNoValidData
 		}
+		c.failures = 0
 	}
 
 	if err := scanner.Err(); err != nil {

@@ -1980,3 +1980,35 @@ func TestIntelCollectorDeviceEnv(t *testing.T) {
 	require.Contains(t, argsStr, "-s ")
 	require.Contains(t, argsStr, "-J")
 }
+
+func TestGPUCollectorStopsAfterMaxFailureRetries(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PATH", dir)
+
+	// Create a failing nvidia-smi fixture by removing its .stdout file so it exits with status 1
+	argsFile := gpuCommandFixture(t, dir, nvidiaSmiCmd, "")
+	require.NoError(t, os.Remove(strings.TrimSuffix(argsFile, ".args")+".stdout"))
+
+	collector := gpuCollector{
+		name:     nvidiaSmiCmd,
+		bufSize:  1024,
+		waitTime: time.Millisecond,
+		parse: func([]byte) bool {
+			return true
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		collector.start()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("gpuCollector.start() did not stop after maxFailureRetries")
+	}
+
+	assert.Equal(t, maxFailureRetries+1, collector.failures)
+}
