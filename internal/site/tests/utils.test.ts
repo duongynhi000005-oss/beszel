@@ -2,10 +2,10 @@ import { describe, expect, mock, test } from "bun:test"
 
 mock.module("@lingui/core/macro", () => ({
 	t: (strings: any) => (typeof strings === "string" ? strings : strings?.[0] ?? ""),
-	plural: (count: number, forms: any) => forms.other ?? "",
+	plural: (count: number, forms: any) => (count === 1 ? (forms.one ?? forms.other ?? "") : (forms.other ?? "")),
 }))
 
-const { formatMicroseconds } = await import("../src/lib/utils")
+const { formatMicroseconds, secondsToUptimeString } = await import("../src/lib/utils")
 
 describe("formatMicroseconds", () => {
 	test("formats with fixedDigits = true (default)", () => {
@@ -47,5 +47,22 @@ describe("formatMicroseconds", () => {
 		expect(formatMicroseconds(Number.NaN)).toBe("-")
 		expect(formatMicroseconds(Number.POSITIVE_INFINITY)).toBe("-")
 		expect(formatMicroseconds(Number.NEGATIVE_INFINITY)).toBe("-")
+	})
+})
+
+describe("secondsToUptimeString", () => {
+	test("formats durations under 1 hour in minutes", () => {
+		expect(secondsToUptimeString(60)).toBe("1 minute")
+		expect(secondsToUptimeString(3599)).toBe("59 minutes")
+	})
+
+	test("formats durations from 1 hour up to 24 hours in hours", () => {
+		expect(secondsToUptimeString(3600)).toBe("1 hour")
+		expect(secondsToUptimeString(86399)).toBe("23 hours")
+	})
+
+	test("switches to days once uptime reaches 24 hours (86400 seconds)", () => {
+		expect(secondsToUptimeString(86400)).toBe("1 day")
+		expect(secondsToUptimeString(78 * 3600)).toBe("3 days")
 	})
 })
