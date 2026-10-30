@@ -49,7 +49,10 @@ func TestStartServer(t *testing.T) {
 	badSigner, err := gossh.NewSignerFromKey(badPrivKey)
 	require.NoError(t, err)
 
-	socketFile := filepath.Join(t.TempDir(), "beszel-test.sock")
+	tmpDir, err := os.MkdirTemp("", "b-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+	socketFile := filepath.Join(tmpDir, "b.sock")
 
 	tests := []struct {
 		name        string
@@ -1007,7 +1010,10 @@ func dialTestAgentClient(t *testing.T, clientVersion string) *gossh.Client {
 	sshPubKey, err := gossh.NewPublicKey(pubKey)
 	require.NoError(t, err)
 
-	socketFile := filepath.Join(t.TempDir(), "beszel-test.sock")
+	tmpDir, err := os.MkdirTemp("", "b-")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = os.RemoveAll(tmpDir) })
+	socketFile := filepath.Join(tmpDir, "b.sock")
 	agent, err := NewAgent("")
 	require.NoError(t, err)
 
